@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Observatório de Políticas Públicas | Prefeitura de Nova Lima</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        nl: { dark: '#060f1c', card: '#0a192f', gold: '#f59e0b' }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .nl-gradient { background: linear-gradient(180deg, #060f1c 0%, #0d1e36 100%); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        .dense-mode td { padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; font-size: 0.75rem !important; }
+        .dense-mode th { padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #printableFicha, #printableFicha * { visibility: visible; }
+            #printableFicha { position: absolute; left: 0; top: 0; width: 100%; border: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-100 antialiased transition-colors duration-200">
+
+    <!-- NOTIFICAÇÃO (TOAST) -->
+    <div id="toast" class="fixed top-5 right-5 z-50 transform transition-all duration-300 translate-y-[-150%] opacity-0 bg-slate-900 text-white text-xs px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2 border border-slate-700">
+        <i data-lucide="info" class="w-4 h-4 text-amber-400"></i>
+        <span id="toastMsg">Mensagem do sistema</span>
+    </div>
+
+    <!-- MODAL DE CONFIRMAÇÃO CUSTOMIZADO -->
+    <div id="modalConfirmCustom" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
+            <div class="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-3">
+                <i data-lucide="alert-circle" class="w-5 h-5"></i>
+            </div>
+            <h3 class="font-black text-slate-900 dark:text-white text-base" id="confirmModalTitle">Confirmação</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" id="confirmModalMsg">Deseja prosseguir com esta ação?</p>
+            <div class="flex items-center justify-end gap-2 mt-5">
+                <button onclick="closeConfirmModal()" class="px-3.5 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl">
+                    Cancelar
+                </button>
+                <button onclick="executeConfirm()" class="px-4 py-1.5 text-xs font-bold bg-[#071524] dark:bg-amber-400 text-white dark:text-slate-900 rounded-xl shadow">
+                    Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TELA DE LOGIN -->
+    <div id="loginOverlay" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 dark:border-slate-700">
+            <div class="text-center mb-6">
+                <div class="flex justify-center mb-3">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/3/32/Coat_of_Arms_of_Nova_Lima.png" 
+                         onerror="this.onerror=null; this.src='https://novalima.mg.gov.br/assets/img/logo.png';" 
+                         alt="Brasão de Nova Lima" class="h-20 object-contain drop-shadow-md">
+                </div>
+                <h2 class="text-lg font-black text-slate-800 dark:text-white leading-tight">Observatório de Políticas Públicas</h2>
+                <p class="text-xs text-amber-600 font-extrabold tracking-wider uppercase mt-0.5">Prefeitura de Nova Lima</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 italic mt-1">"O futuro mora aqui."</p>
+            </div>
+
+            <!-- FORMULÁRIO COM CAMPOS LIMPOS E PROTEÇÃO CONTRA RECARREGAMENTO -->
+            <form onsubmit="event.preventDefault(); handleLogin(event); return false;" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-600 dark:text-slate-300 mb-1">E-mail Institucional</label>
+                    <input type="email" id="loginEmail" required placeholder="seu.email@pnl.mg.gov.br" 
+                           class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none font-medium">
+                </div>
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-bold uppercase text-slate-600 dark:text-slate-300">Senha de Acesso</label>
+                        <span class="text-[10px] text-slate-400">Padrão: novalima2026</span>
+                    </div>
+                    <input type="password" id="loginPass" required placeholder="Digite sua senha" 
+                           class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-blue-900 focus:outline-none font-medium">
+                </div>
+
+                <div id="loginError" class="hidden text-xs text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-200 font-medium text-center">
+                    E-mail ou senha incorretos. (Dica: a senha padrão inicial é <strong>novalima2026</strong>)
+                </div>
+
+                <button type="submit" class="w-full bg-[#071524] hover:bg-[#102d4d] text-white py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition shadow-lg flex items-center justify-center gap-2 mt-2">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-amber-400"></i> Acessar Observatório
+                </button>
+            </form>
+            <div class="mt-5 pt-3 border-t border-slate-100 dark:border-slate-700 text-center text-[11px] text-slate-400">
+                SEPLAG • Secretaria Municipal de Planejamento e Gestão Estratégica
+            </div>
+        </div>
+    </div>
+
+    <!-- ESTRUTURA PRINCIPAL -->
+    <div class="flex h-screen overflow-hidden">
+
+        <!-- Sidebar / Menu Lateral Moderno e Enxuto (w-64) -->
+        <aside id="sidebar" class="fixed md:static inset-y-0 left-0 transform -translate-x-full md:translate-x-0 w-64 nl-gradient text-white flex flex-col justify-between shadow-xl shrink-0 z-40 transition-transform duration-300 border-r border-slate-800/80">
+            <div>
+                <!-- Identidade Oficial -->
+                <div class="p-5 border-b border-slate-800/70">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-white p-1.5 rounded-xl shadow flex items-center justify-center w-11 h-11 shrink-0">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/3/32/Coat_of_Arms_of_Nova_Lima.png" 
+                                 onerror="this.onerror=null; this.src='https://novalima.mg.gov.br/assets/img/logo.png';" 
+                                 alt="Brasão Nova Lima" class="max-h-9 object-contain">
+                        </div>
+                        <div>
+                            <span class="text-[9px] uppercase tracking-widest text-amber-400 font-black block">Prefeitura de</span>
+                            <h1 class="text-sm font-black leading-tight tracking-tight">Nova Lima</h1>
+                            <span class="text-[10px] text-slate-400 font-medium italic block">PPA 2025-2028</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navegação Direta -->
+                <nav class="p-3 space-y-1">
+                    <button onclick="switchTab('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-white/15 text-white font-semibold text-xs transition text-left shadow-sm">
+                        <i data-lucide="layout-dashboard" class="w-4 h-4 text-amber-400"></i>
+                        Visão Geral
+                    </button>
+                    <button onclick="switchTab('matriz')" id="nav-matriz" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-300 hover:bg-white/10 hover:text-white font-medium text-xs transition text-left">
+                        <i data-lucide="table-properties" class="w-4 h-4"></i>
+                        Políticas Públicas
+                    </button>
+                    <button onclick="switchTab('situacao')" id="nav-situacao" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-300 hover:bg-white/10 hover:text-white font-medium text-xs transition text-left">
+                        <i data-lucide="presentation" class="w-4 h-4"></i>
+                        Apresentação Executiva
+                    </button>
+                    <button onclick="switchTab('seguranca')" id="nav-seguranca" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-300 hover:bg-white/10 hover:text-white font-medium text-xs transition text-left">
+                        <i data-lucide="settings" class="w-4 h-4"></i>
+                        Configurações & Acessos
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Identificação do Servidor Logado -->
+            <div class="p-3 m-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2.5 overflow-hidden">
+                        <div class="w-8 h-8 rounded-lg bg-amber-400 text-slate-900 font-black flex items-center justify-center text-xs shrink-0" id="userAvatar">
+                            JD
+                        </div>
+                        <div class="truncate">
+                            <div class="font-bold text-white truncate text-xs" id="userNameLabel">João Duarte</div>
+                            <span class="text-[10px] text-amber-300 font-mono block truncate" id="userRoleBadge">SEPLAG Admin</span>
+                        </div>
+                    </div>
+                    <button onclick="logout()" title="Sair do Observatório" class="text-slate-400 hover:text-red-400 p-1 rounded-lg hover:bg-slate-800 transition">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Área Principal de Conteúdo -->
+        <main class="flex-1 flex flex-col overflow-y-auto">
+
+            <!-- CABEÇALHO GLOBAL LIMPO E DESAFOGADO (NÃO É FIXO) -->
+            <header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-3.5 flex justify-between items-center transition-colors">
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleMobileSidebar()" class="md:hidden p-2 rounded-xl border border-slate-300 dark:border-slate-600">
+                        <i data-lucide="menu" class="w-4 h-4"></i>
+                    </button>
+                    <div>
+                        <h2 class="text-base font-black text-slate-900 dark:text-white leading-tight" id="headerTitle">Visão Geral das Políticas Públicas</h2>
+                        <span class="text-[11px] text-slate-500 dark:text-slate-400">Prefeitura de Nova Lima • Monitoramento e Avaliação PPA</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="exportCSV()" class="border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition">
+                        <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-emerald-600"></i> Planilha
+                    </button>
+                    <button onclick="toggleDarkMode()" title="Modo Escuro" class="p-2 rounded-xl border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+                        <i data-lucide="moon" id="themeIcon" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="openCreateModal()" id="btnNewPolicy" class="bg-[#071524] hover:bg-[#102d4d] text-white text-xs font-bold px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow transition">
+                        <i data-lucide="plus" class="w-3.5 h-3.5 text-amber-400"></i> Nova Política
+                    </button>
+                </div>
+            </header>
+
+            <!-- CONTEÚDO PRINCIPAL -->
+            <div class="p-6 max-w-7xl mx-auto w-full space-y-6">
+
+                <!-- ================= ABA 1: VISÃO GERAL ================= -->
+                <div id="view-dashboard" class="tab-content active space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-start justify-between">
+                            <div>
+                                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Políticas Monitoradas</span>
+                                <h3 class="text-3xl font-black text-slate-800 dark:text-white mt-1" id="dashTotal">0</h3>
+                                <span class="text-xs text-emerald-600 font-semibold flex items-center gap-1 mt-2">
+                                    <i data-lucide="check-check" class="w-3.5 h-3.5"></i> Ciclo PPA Ativo
+                                </span>
+                            </div>
+                            <div class="p-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-900 dark:text-blue-300 rounded-xl">
+                                <i data-lucide="sparkles" class="w-5 h-5"></i>
+                            </div>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-start justify-between">
+                            <div>
+                                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Atendimentos / Benefícios</span>
+                                <h3 class="text-3xl font-black text-slate-800 dark:text-white mt-1" id="dashPopulacao">0</h3>
+                                <span class="text-[10px] text-slate-400 mt-2 block font-medium">
+                                    Alcance acumulado • Base: <strong id="dashBaseMunicipal" class="text-slate-700 dark:text-slate-300">120.000</strong> hab
+                                </span>
+                            </div>
+                            <div class="p-2.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl">
+                                <i data-lucide="users" class="w-5 h-5"></i>
+                            </div>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-start justify-between">
+                            <div>
+                                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Custo Médio / Atendimento</span>
+                                <h3 class="text-3xl font-black text-blue-900 dark:text-blue-400 mt-1" id="dashCustoMedio">R$ 0</h3>
+                                <span class="text-xs text-slate-500 dark:text-slate-400 mt-2 block font-medium">Eficiência média anual</span>
+                            </div>
+                            <div class="p-2.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-xl">
+                                <i data-lucide="coins" class="w-5 h-5"></i>
+                            </div>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-start justify-between">
+                            <div>
+                                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Atingimento Médio</span>
+                                <h3 class="text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1" id="dashMedia">0%</h3>
+                                <span class="text-xs text-slate-500 dark:text-slate-400 mt-2 block font-medium">Média geral das metas</span>
+                            </div>
+                            <div class="p-2.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                                <i data-lucide="trending-up" class="w-5 h-5"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gráficos Gerenciais -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm lg:col-span-2">
+                            <h3 class="font-bold text-slate-800 dark:text-white text-sm mb-1">Atingimento de Metas por Política (%)</h3>
+                            <p class="text-xs text-slate-400 mb-3">Comparativo do plano de trabalho</p>
+                            <div class="h-64">
+                                <canvas id="chartExecucao"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
+                            <div>
+                                <h3 class="font-bold text-slate-800 dark:text-white text-sm mb-1">Distribuição por Status</h3>
+                                <p class="text-xs text-slate-400 mb-3">Saúde operacional das ações</p>
+                            </div>
+                            <div class="h-48 flex items-center justify-center">
+                                <canvas id="chartStatus"></canvas>
+                            </div>
+                            <div class="pt-3 border-t border-slate-100 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 flex justify-between">
+                                <span>Marco de Efetividade: <strong>≥ 70%</strong></span>
+                                <span class="text-blue-900 dark:text-blue-400 font-bold">Nova Lima • MG</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Top 5 Entregas Sociais -->
+                    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="font-black text-slate-800 dark:text-white text-sm">Top 5 Políticas em Cobertura</h3>
+                                <p class="text-xs text-slate-400">Programas com maior volume de atendimentos concedidos</p>
+                            </div>
+                            <span class="text-xs font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">Maior Alcance</span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-5 gap-3" id="top5Container"></div>
+                    </div>
+                </div>
+
+                <!-- ================= ABA 2: POLÍTICAS PÚBLICAS ================= -->
+                <div id="view-matriz" class="tab-content space-y-4">
+
+                    <!-- BANNER DE ATENÇÃO (EXCLUSIVO DESTA ABA) -->
+                    <div id="alertBanner" class="hidden bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                                <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-xs text-amber-900 dark:text-amber-200" id="alertBannerTitle">Políticas com necessidade de atenção</h4>
+                                <p class="text-[11px] text-amber-700 dark:text-amber-400" id="alertBannerDesc">Existem ações operando abaixo da meta pactuada.</p>
+                            </div>
+                        </div>
+                        <button onclick="filterCriticalPolicies()" class="text-xs bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold px-3 py-1.5 rounded-lg shadow-sm transition">
+                            Filtrar Ações
+                        </button>
+                    </div>
+
+                    <!-- BARRA DE FERRAMENTAS E FILTROS COMPLETA -->
+                    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <!-- Pílulas de Status Rápidas -->
+                            <div class="flex items-center gap-2 text-xs">
+                                <button onclick="filterByStatusPill('No Prazo')" class="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span> <span id="pillCountPrazo">0</span> No Prazo
+                                </button>
+                                <button onclick="filterByStatusPill('Atenção')" class="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-bold flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full bg-amber-500"></span> <span id="pillCountAtencao">0</span> Atenção
+                                </button>
+                                <button onclick="filterByStatusPill('Superado')" class="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full bg-blue-500"></span> <span id="pillCountSuperado">0</span> Superadas
+                                </button>
+                            </div>
+
+                            <!-- Botões de Filtro por Público -->
+                            <div class="flex items-center gap-1 text-xs flex-wrap">
+                                <button onclick="filterByPublico('TODOS')" id="btnFilter-TODOS" class="px-2.5 py-1 rounded-lg border border-blue-900 bg-[#071524] text-amber-400 font-bold transition">Todos</button>
+                                <button onclick="filterByPublico('Pobreza')" id="btnFilter-Pobreza" class="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 font-medium hover:bg-slate-100 text-slate-600 dark:text-slate-300 transition">Vulnerabilidade</button>
+                                <button onclick="filterByPublico('Educacao')" id="btnFilter-Educacao" class="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 font-medium hover:bg-slate-100 text-slate-600 dark:text-slate-300 transition">Educação</button>
+                                <button onclick="filterByPublico('Idoso')" id="btnFilter-Idoso" class="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 font-medium hover:bg-slate-100 text-slate-600 dark:text-slate-300 transition">Idosos/PCD</button>
+                            </div>
+
+                            <!-- Alternador Tabela / Cards / Compacto -->
+                            <div class="flex items-center gap-1.5">
+                                <button onclick="toggleDensity()" id="btnDensity" title="Modo Compacto" class="px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-1">
+                                    <i data-lucide="align-justify" class="w-3.5 h-3.5"></i> Compacto
+                                </button>
+                                <button onclick="toggleViewMode('table')" id="btnViewTable" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-900 text-white flex items-center gap-1 shadow-sm">
+                                    <i data-lucide="table" class="w-3.5 h-3.5"></i> Tabela
+                                </button>
+                                <button onclick="toggleViewMode('cards')" id="btnViewCards" class="px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-1">
+                                    <i data-lucide="grid-2x2" class="w-3.5 h-3.5"></i> Cards
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Dropdowns de Filtro Integrados -->
+                        <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                            <div class="relative flex-1 min-w-[200px]">
+                                <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5"></i>
+                                <input type="text" id="searchInput" oninput="applyFilters()" placeholder="Buscar ação, secretaria, evidência... (Pressione /)" 
+                                       class="text-xs border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl pl-8 pr-3 py-1.5 w-full focus:outline-none focus:ring-2 focus:ring-blue-900 font-medium">
+                            </div>
+
+                            <select id="filterSecretaria" onchange="applyFilters()" class="bg-slate-50 dark:bg-slate-700 dark:text-white border border-slate-300 dark:border-slate-600 text-slate-700 text-xs font-semibold rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-blue-900 max-w-[170px] truncate"></select>
+                            <select id="filterTerritorio" onchange="applyFilters()" class="bg-slate-50 dark:bg-slate-700 dark:text-white border border-slate-300 dark:border-slate-600 text-slate-700 text-xs font-semibold rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-blue-900 max-w-[150px] truncate"></select>
+                            <select id="filterEixo" onchange="applyFilters()" class="bg-slate-50 dark:bg-slate-700 dark:text-white border border-slate-300 dark:border-slate-600 text-slate-700 text-xs font-semibold rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-blue-900 max-w-[150px] truncate"></select>
+
+                            <button onclick="toggleFavoritesFilter()" id="btnFilterFavorites" class="px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs hover:border-amber-400 flex items-center gap-1 transition">
+                                <i data-lucide="star" class="w-3.5 h-3.5 text-amber-400 fill-amber-400"></i> Pauta
+                            </button>
+
+                            <button onclick="clearAllFilters()" id="btnClearGlobal" title="Redefinir filtros" class="hidden items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition">
+                                <i data-lucide="filter-x" class="w-3.5 h-3.5"></i>
+                                <span>Limpar (<span id="clearFiltersCount">0</span>)</span>
+                            </button>
+                        </div>
+
+                        <!-- CHIPS DE FILTRO ATIVOS -->
+                        <div id="activeFilterChipsContainer" class="flex flex-wrap items-center gap-1.5 pt-1 empty:hidden"></div>
+                    </div>
+
+                    <!-- TABELA COMPACTA -->
+                    <div id="tableWrapper" class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse" id="mainTable">
+                                <thead class="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-[11px] uppercase tracking-wider">
+                                    <tr>
+                                        <th onclick="sortTable('nome')" class="py-3 px-4 font-bold cursor-pointer hover:text-blue-900 dark:hover:text-amber-400">
+                                            Política & Local <i data-lucide="arrow-up-down" class="w-3 h-3 inline"></i>
+                                        </th>
+                                        <th class="py-3 px-4 font-bold">Entregas & Impacto Social</th>
+                                        <th onclick="sortTable('orcamento')" class="py-3 px-4 font-bold cursor-pointer hover:text-blue-900 dark:hover:text-amber-400">
+                                            Custo / Atendimento <i data-lucide="arrow-up-down" class="w-3 h-3 inline"></i>
+                                        </th>
+                                        <th onclick="sortTable('progresso')" class="py-3 px-4 font-bold cursor-pointer hover:text-blue-900 dark:hover:text-amber-400">
+                                            Progresso <i data-lucide="arrow-up-down" class="w-3 h-3 inline"></i>
+                                        </th>
+                                        <th class="py-3 px-4 font-bold text-center">Status</th>
+                                        <th class="py-3 px-4 font-bold text-center">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="policies-table-body" class="divide-y divide-slate-100 dark:divide-slate-700 text-sm"></tbody>
+                            </table>
+                        </div>
+
+                        <div class="p-3 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-200 dark:border-slate-700 flex flex-wrap justify-between items-center text-xs font-semibold text-slate-600 dark:text-slate-300">
+                            <span id="footerCount">19 políticas listadas</span>
+                            <div class="flex items-center gap-6">
+                                <span>Volume de Atendimentos: <strong class="text-amber-600" id="footerTotalPessoas">0</strong></span>
+                                <span>Orçamento Filtrado: <strong class="text-blue-900 dark:text-blue-400" id="footerTotalOrcamento">R$ 0</strong></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MODO CARDS -->
+                    <div id="cardsWrapper" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                </div>
+
+                <!-- ================= ABA 3: APRESENTAÇÃO EXECUTIVA ================= -->
+                <div id="view-situacao" class="tab-content space-y-4">
+                    <div class="bg-gradient-to-r from-[#060f1c] to-[#0d223a] text-white p-4 rounded-2xl shadow-lg flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-400 flex items-center justify-center font-black">
+                                <i data-lucide="monitor" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-black text-white">Pauta de Despacho Executivo</h3>
+                                <p class="text-[11px] text-slate-300">Apresentação para reunião com o Prefeito</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <select id="presFilterSec" onchange="setupPresentationMode()" class="bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-3 py-2 rounded-xl border border-white/20 focus:outline-none max-w-[180px] truncate"></select>
+
+                            <div class="flex items-center gap-1 bg-white/10 p-1 rounded-xl border border-white/20">
+                                <button onclick="prevSlide()" title="Slide Anterior (Seta Esquerda)" class="p-1.5 rounded-lg hover:bg-white/20 text-white transition">
+                                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                                </button>
+                                <span id="presSlideCounter" class="text-xs font-mono font-bold px-2 text-amber-300">1 de 19</span>
+                                <button onclick="nextSlide()" title="Próximo Slide (Seta Direita / Espaço)" class="p-1.5 rounded-lg hover:bg-white/20 text-white transition">
+                                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+
+                            <button onclick="togglePresentationAutoPlay()" id="btnPresAutoPlay" class="bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-3 py-2 rounded-xl border border-white/20 flex items-center gap-1.5 transition">
+                                <i data-lucide="play" class="w-3.5 h-3.5 text-amber-400"></i> Auto Telão
+                            </button>
+
+                            <button onclick="toggleFullScreen()" title="Tela Cheia" class="bg-white/10 hover:bg-white/20 text-white font-bold text-xs p-2 rounded-xl border border-white/20 transition">
+                                <i data-lucide="maximize" class="w-3.5 h-3.5"></i>
+                            </button>
+
+                            <div class="flex items-center gap-1 bg-white/10 p-1 rounded-xl border border-white/20">
+                                <button onclick="setPresentationView('slide')" id="btnPresViewSlide" class="px-2 py-1 text-xs font-bold rounded-lg bg-blue-900 text-white">Slide</button>
+                                <button onclick="setPresentationView('grid')" id="btnPresViewGrid" class="px-2 py-1 text-xs font-bold rounded-lg text-slate-300">Mosaico</button>
+                            </div>
+
+                            <button onclick="exportCadernoGeral()" class="bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold text-xs px-3.5 py-2 rounded-xl shadow flex items-center gap-1.5 transition">
+                                <i data-lucide="book-open" class="w-3.5 h-3.5"></i> Caderno PPA
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="presSlideContainer" class="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-8 shadow-xl min-h-[460px] flex flex-col justify-between">
+                        <div id="presSlideCard"></div>
+                    </div>
+
+                    <div id="presGridContainer" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                </div>
+
+                <!-- ================= ABA 4: CONFIGURAÇÕES DO SISTEMA ================= -->
+                <div id="view-seguranca" class="tab-content space-y-6">
+                    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+                        <div class="pb-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                            <div>
+                                <h3 class="font-extrabold text-slate-900 dark:text-white text-sm">Estrutura Administrativa de Nova Lima</h3>
+                                <p class="text-xs text-slate-400">Adicione ou remova opções disponíveis em formulários e filtros</p>
+                            </div>
+                            <span class="text-xs font-bold text-blue-900 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full border border-blue-200 dark:border-blue-800">Autonomia SEPLAG</span>
+                        </div>
+
+                        <div class="mt-4 space-y-2">
+                            <h4 class="font-bold text-xs uppercase text-slate-600 dark:text-slate-300">Secretarias Municipais</h4>
+                            <div class="flex gap-2">
+                                <input type="text" id="inputAddSecretaria" placeholder="Ex: Secretaria de Comunicação" class="text-xs border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 w-64">
+                                <button onclick="addConfigItem('secretarias')" class="bg-[#071524] hover:bg-[#102d4d] text-white text-xs font-bold px-3 py-1.5 rounded-xl transition">Adicionar</button>
+                            </div>
+                            <div class="flex flex-wrap gap-1.5 pt-1" id="listConfigSecretarias"></div>
+                        </div>
+
+                        <div class="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700 space-y-2">
+                            <h4 class="font-bold text-xs uppercase text-slate-600 dark:text-slate-300">Territórios / Regiões</h4>
+                            <div class="flex gap-2">
+                                <input type="text" id="inputAddTerritorio" placeholder="Ex: Bairro Balneário" class="text-xs border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 w-64">
+                                <button onclick="addConfigItem('territorios')" class="bg-[#071524] hover:bg-[#102d4d] text-white text-xs font-bold px-3 py-1.5 rounded-xl transition">Adicionar</button>
+                            </div>
+                            <div class="flex flex-wrap gap-1.5 pt-1" id="listConfigTerritorios"></div>
+                        </div>
+
+                        <div class="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700 space-y-2">
+                            <h4 class="font-bold text-xs uppercase text-slate-600 dark:text-slate-300">Eixos Estratégicos</h4>
+                            <div class="flex gap-2">
+                                <input type="text" id="inputAddEixo" placeholder="Ex: Gestão e Modernização" class="text-xs border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 w-64">
+                                <button onclick="addConfigItem('eixos')" class="bg-[#071524] hover:bg-[#102d4d] text-white text-xs font-bold px-3 py-1.5 rounded-xl transition">Adicionar</button>
+                            </div>
+                            <div class="flex flex-wrap gap-1.5 pt-1" id="listConfigEixos"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+                        <h3 class="font-extrabold text-slate-900 dark:text-white text-sm mb-1">Parâmetros Oficiais & Régua de Metas</h3>
+                        <p class="text-xs text-slate-400 mb-4">Ajuste os valores de referência utilizados para cálculo de indicadores</p>
+
+                        <form onsubmit="saveMunicipalParams(event)" class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">População Oficial</label>
+                                <input type="text" id="confPopulacao" oninput="formatCurrencyInput(this)" required class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-bold">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Ciclo de Planejamento</label>
+                                <input type="text" id="confCiclo" required class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Atenção (Abaixo de %)</label>
+                                <input type="number" id="confCorteAtencao" min="1" max="99" required class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-bold">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Superada (A partir de %)</label>
+                                <input type="number" id="confCorteSuperado" min="100" max="200" required class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-bold">
+                            </div>
+                            <div class="md:col-span-4 flex justify-end">
+                                <button type="submit" class="bg-[#071524] hover:bg-[#102d4d] text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow">
+                                    Salvar Parâmetros
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+                        <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700">
+                            <div>
+                                <h3 class="font-extrabold text-slate-900 dark:text-white text-sm">Cópia de Segurança & Preservação</h3>
+                                <p class="text-xs text-slate-400">Exporte os dados completos ou restaure a base oficial de Nova Lima</p>
+                            </div>
+                            <button onclick="resetToOfficialData()" class="text-xs bg-red-50 hover:bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300 font-bold px-3 py-1.5 rounded-xl border border-red-200 transition">
+                                Restaurar Base Oficial (Padrão PNL)
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                            <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/40 flex items-center justify-between">
+                                <div>
+                                    <h4 class="font-bold text-xs text-slate-800 dark:text-white">Exportar Backup Completo (JSON)</h4>
+                                    <p class="text-[11px] text-slate-400 mt-0.5">Políticas, medições e configurações.</p>
+                                </div>
+                                <button onclick="exportBackupJSON()" class="bg-[#071524] hover:bg-[#102d4d] text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 transition">
+                                    <i data-lucide="download" class="w-3.5 h-3.5 text-amber-400"></i> Exportar
+                                </button>
+                            </div>
+
+                            <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/40 flex items-center justify-between">
+                                <div>
+                                    <h4 class="font-bold text-xs text-slate-800 dark:text-white">Restaurar Cópia</h4>
+                                    <p class="text-[11px] text-slate-400 mt-0.5">Carrega arquivo JSON salvo anteriormente.</p>
+                                </div>
+                                <label class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 text-slate-700 dark:text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 cursor-pointer transition">
+                                    <i data-lucide="upload" class="w-3.5 h-3.5 text-blue-600"></i> Importar
+                                    <input type="file" id="fileRestore" onchange="importBackupJSON(event)" class="hidden" accept=".json">
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+                        <h3 class="font-extrabold text-slate-900 dark:text-white text-sm mb-1">Pontos Focais & Usuários</h3>
+                        <p class="text-xs text-slate-400 mb-4">Servidores autorizados a atualizar medições</p>
+
+                        <form id="formNewUser" onsubmit="createUser(event)" class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Nome</label>
+                                <input type="text" id="newUserName" required placeholder="Ex: Ana Paula Soares" class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">E-mail Institucional</label>
+                                <input type="email" id="newUserEmail" required placeholder="ana.soares@pnl.mg.gov.br" class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Secretaria</label>
+                                <select id="newUserSec" required class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-semibold"></select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Perfil</label>
+                                <select id="newUserRole" class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-semibold">
+                                    <option value="SECRETARIA">Ponto Focal (Edita sua pasta)</option>
+                                    <option value="CONSULTA">Gabinete (Apenas Consulta)</option>
+                                    <option value="SEPLAG_ADMIN">SEPLAG Admin (Controle Total)</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-3">
+                                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Senha</label>
+                                <input type="password" id="newUserPass" required value="novalima2026" class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-mono">
+                            </div>
+                            <div class="flex items-end">
+                                <button type="submit" class="w-full bg-[#071524] hover:bg-[#102d4d] text-white py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 shadow">
+                                    <i data-lucide="user-plus" class="w-3.5 h-3.5 text-amber-400"></i> Registrar
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="mt-5 overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 uppercase font-bold border-b border-slate-200 dark:border-slate-700">
+                                    <tr>
+                                        <th class="p-3">Servidor</th>
+                                        <th class="p-3">E-mail</th>
+                                        <th class="p-3">Secretaria</th>
+                                        <th class="p-3">Perfil</th>
+                                        <th class="p-3 text-center">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTableBody" class="divide-y divide-slate-100 dark:divide-slate-700"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL DE CADASTRO / EDIÇÃO -->
+    <div id="modalPolicy" onclick="if(event.target === this) closeModal()" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[92vh] overflow-y-auto">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-200 dark:border-slate-700">
+                <div>
+                    <h3 class="font-black text-base text-slate-800 dark:text-white" id="modalPolicyTitle">Cadastrar Política Pública</h3>
+                    <p class="text-[11px] text-slate-400">Observatório Municipal de Nova Lima</p>
+                </div>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <form id="formPolicy" onsubmit="savePolicy(event)" class="space-y-3.5 mt-3">
+                <input type="hidden" id="policyId">
+
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-600 dark:text-slate-300 mb-1">Nome da Política Pública</label>
+                    <input type="text" id="policyNome" required placeholder="Ex: Cartão Alimentação Cidadã" class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-blue-900 focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 dark:text-slate-300 mb-1">Secretaria</label>
+                        <select id="policySecretaria" required class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-semibold focus:ring-2 focus:ring-blue-900"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 dark:text-slate-300 mb-1">Eixo</label>
+                        <select id="policyEixo" class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-semibold"></select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 dark:text-slate-300 mb-1">Território</label>
+                        <select id="policyTerritorio" class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-semibold"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 dark:text-slate-300 mb-1">Vínculo ODS (ONU)</label>
+                        <select id="policyODS" class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-semibold">
+                            <option value="ODS 1 - Erradicação da Pobreza">ODS 1 - Erradicação da Pobreza</option>
+                            <option value="ODS 3 - Saúde e Bem-Estar">ODS 3 - Saúde e Bem-Estar</option>
+                            <option value="ODS 4 - Educação de Qualidade">ODS 4 - Educação de Qualidade</option>
+                            <option value="ODS 8 - Trabalho Decente e Crescimento">ODS 8 - Trabalho Decente</option>
+                            <option value="ODS 9 - Indústria, Inovação e Infraestrutura">ODS 9 - Inovação</option>
+                            <option value="ODS 10 - Redução das Desigualdades">ODS 10 - Redução Desigualdades</option>
+                            <option value="ODS 11 - Cidades e Comunidades Sustentáveis">ODS 11 - Cidades Sustentáveis</option>
+                            <option value="ODS 15 - Vida Terrestre">ODS 15 - Vida Terrestre</option>
+                            <option value="ODS 16 - Paz, Justiça e Instituições Eficazes">ODS 16 - Paz e Instituições</option>
+                            <option value="ODS 17 - Parcerias e Meios de Implementação">ODS 17 - Parcerias</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 bg-blue-50/50 dark:bg-blue-950/20 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-blue-950 dark:text-blue-300 mb-1">Atendimentos / Benefícios</label>
+                        <input type="text" id="policyPublico" oninput="formatCurrencyInput(this)" required placeholder="Ex: 3.500" class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-blue-950 dark:text-blue-300 mb-1">Orçamento Anual (R$)</label>
+                        <input type="text" id="policyOrcamento" oninput="formatCurrencyInput(this)" required placeholder="Ex: 1.200.000" class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-bold">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-600 dark:text-slate-300 mb-1">Indicador de Entrega (Produto Físico/Serviço)</label>
+                    <textarea id="policyProduto" rows="2" required placeholder="Ex: Famílias atendidas com transferência de renda" class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-600 dark:text-slate-300 mb-1">Impacto Social Alcançado (Resultado)</label>
+                    <textarea id="policyResultado" rows="2" required placeholder="Ex: Redução da insegurança alimentar severa" class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs"></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-700/50 p-2.5 rounded-xl border border-slate-200 dark:border-slate-600">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">% de Meta Atingida</label>
+                        <input type="number" id="policyProgresso" oninput="onProgressoInputChange()" min="0" max="150" required class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-black">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Status Operacional</label>
+                        <select id="policyStatus" class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs font-bold">
+                            <option value="No Prazo">No Prazo (Adequado)</option>
+                            <option value="Atenção">Em Atenção (Gargalo)</option>
+                            <option value="Superado">Meta Superada</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-600 dark:text-slate-300 mb-1">Evidência Técnica</label>
+                    <input type="text" id="policyNota" placeholder="Ex: Folha bancária auditada do 1º quadrimestre." class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-1.5 text-xs">
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                    <button type="button" onclick="closeModal()" class="px-3.5 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 rounded-xl">Cancelar</button>
+                    <button type="submit" class="px-4 py-1.5 text-xs bg-[#071524] hover:bg-[#102d4d] text-white font-bold rounded-xl shadow flex items-center gap-1.5">
+                        <i data-lucide="check" class="w-3.5 h-3.5 text-amber-400"></i> Salvar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL DE FICHA EXECUTIVA -->
+    <div id="modalFicha" onclick="if(event.target === this) closeFichaModal()" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[92vh] overflow-y-auto" id="printableFicha">
+            <div class="flex justify-between items-start pb-3 border-b-2 border-slate-800 dark:border-slate-600">
+                <div class="flex items-center gap-3">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/3/32/Coat_of_Arms_of_Nova_Lima.png" class="h-12 object-contain">
+                    <div>
+                        <span class="text-[9px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Prefeitura de Nova Lima • Gabinete</span>
+                        <h2 class="text-sm font-black text-slate-900 dark:text-white leading-tight">Ficha Executiva de Política Pública</h2>
+                        <span class="text-[10px] text-amber-600 font-bold italic">Observatório Municipal</span>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span class="text-[9px] font-mono text-slate-400 block" id="fichaDataEmissao"></span>
+                    <button onclick="window.print()" class="mt-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-2.5 py-1 rounded-lg border border-slate-300">
+                        Imprimir Ficha
+                    </button>
+                </div>
+            </div>
+            <div class="mt-4 space-y-3 text-xs" id="fichaContent"></div>
+        </div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script src="dados.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
